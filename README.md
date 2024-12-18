@@ -26,7 +26,7 @@ TMP_FILENAME=$(shell echo com.apple.launchd.$(shell tr -dc 'a-z' < /dev/urandom 
 
 ```
 > [!Important]
-> The server staging the dylib will be requested using the following structure: `http://$(HOST):$(PORT)$(DYLIB_PATH)
+> The server staging the dylib will be requested using the following structure: `http://$(HOST):$(PORT)$(DYLIB_PATH)`
 
 > [!WARNING]
 > You MUST include all '/' in the `DYLIB_PATH` variable, including the leading. (e.g., `/api/download/libPdfManger.dylib`)
@@ -58,7 +58,7 @@ make test_dylib
 
 ## Running the compiled binary
 After building the project, you can run the binary:
-```bash
+```
 ./<binary-name>
 ```
 
