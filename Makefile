@@ -19,6 +19,16 @@ release: main.c
 		-DENTRY_POINT_FUNC=$(ENTRY_POINT) \
 		-DTMP_FILENAME=\"$(TMP_FILENAME)\"
 
+release-dl: main.c
+	gcc main.c -o $(BINARY_NAME).dylib \
+		-dynamiclib \
+		-DHOST=\"$(HOST)\" \
+		-DPORT=$(PORT) \
+		-DDYLIB_PATH=\"$(DYLIB_PATH)\" \
+		-DENTRY_POINT=\"$(ENTRY_POINT)\" \
+		-DENTRY_POINT_FUNC=$(ENTRY_POINT) \
+		-DTMP_FILENAME=\"$(TMP_FILENAME)\"
+
 debug: main.c
 	gcc main.c -o $(BINARY_NAME)_debug \
 		-DHOST=\"$(HOST)\" \
@@ -30,6 +40,6 @@ debug: main.c
 		-DVERBOSE
 
 test_dylib: testdylib.c
-	gcc testdylib.c -o libtest.dylib
+	gcc testdylib.c -dynamiclib -o libtest.dylib
 
 clean: rm -f $(BINARY_NAME)
