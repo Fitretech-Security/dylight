@@ -10,8 +10,28 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <dlfcn.h>
+#include <signal.h>
 
 #define BUFFER_SIZE 4096
+
+struct Memory global_mem = {0};
+
+void cleanup(int signum) {
+    if (global_mem.data) {
+        free(global_mem.data);
+    }
+    exit(signum);
+}
+
+void setup_signal_handlers() {
+    struct sigaction sa;
+    sa.sa_handler = cleanup;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, NULL);  // Handle Ctrl+C
+    sigaction(SIGTERM, &sa, NULL); // Handle termination signal
+}
 
 struct Memory {
     char *data;
@@ -163,6 +183,8 @@ void *load_dylib_from_memory(struct Memory *mem) {
 }
 
 int main() {
+    setup_signal_handlers();
+
     const char *hostname = HOST;
     const char *path = DYLIB_PATH;
 
