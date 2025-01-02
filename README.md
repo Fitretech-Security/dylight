@@ -89,7 +89,7 @@ Here are the goals to make this project "complete":
 
 - [ ] Integrate HTTPS
 - [ ] Integrate other data streams (Websockets, etc)
-- [ ] Make a memory safe exit! (sigkill)
+- [x] Make a memory safe exit! (7410c5c117143ed673b233f6d9d0ea4898f48215 added handler for SIGINT and SIGTERM for better memory safety)
 - [ ] Obfuscation
 
 ## Additional Notes and Testing
