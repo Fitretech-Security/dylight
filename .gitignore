@@ -50,4 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Local files
 .vscode/
+src/server/certs/*.pem
+src/server/certs/*.srl
+src/server/server
