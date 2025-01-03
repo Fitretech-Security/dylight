@@ -21,7 +21,7 @@ test-certs:
 
 	mkdir -p ./certs
 	openssl genpkey -algorithm RSA -out ./certs/ca-key.pem -pkeyopt rsa_keygen_bits:2048					# CA private key
-	openssl req -x509 -new -nodes -key ./certs/ca-key.pem -sha256 -days 3650 -out ./certs/ca-cert.pem \
+	openssl req -x509 -new -nodes -key ./certs/ca-key.pem -sha256 -days 365 -out ./certs/ca-cert.pem \
 		-subj "/CN=Test/O=Client/C=US"																		# CA certificate
 
 	openssl genpkey -algorithm RSA -out ./certs/server-key.pem -pkeyopt rsa_keygen_bits:2048				# Server private key
