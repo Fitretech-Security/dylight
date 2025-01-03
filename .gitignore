@@ -57,3 +57,5 @@ src/server/certs/*.pem
 src/server/certs/*.srl
 src/server/server
 src/server/dylight_server
+src/client/certs/*.pem
+src/client/certs/*.srl

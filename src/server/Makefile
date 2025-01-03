@@ -35,6 +35,8 @@ test-certs:
 		-subj "/CN=Beacon/O=Client/C=US"																	# Client certificate signing request
 	openssl x509 -req -in ./certs/client-csr.pem -CA ./certs/ca-cert.pem -CAkey ./certs/ca-key.pem \
 		-CAcreateserial -out ./certs/client-cert.pem -days 365 -sha256										# Client certificate
+	cp ./certs/client* ../client/certs/
+	cp ./certs/ca-cert.pem ../client/certs/
 
 clean-certs:
 	find ./certs/ | grep -E 'pem|srl' | xargs rm
