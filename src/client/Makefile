@@ -13,6 +13,7 @@ all: release
 release: main.c
 	gcc main.c -o $(BINARY_NAME) \
 		-I/opt/homebrew/opt/openssl@3/include \
+		-L/opt/homebrew/opt/openssl@3/lib \
 		-lssl \
 		-lcrypto \
 		-DHOST=\"$(HOST)\" \
@@ -25,6 +26,7 @@ release: main.c
 release-dl: main.c
 	gcc main.c -o $(BINARY_NAME).dylib \
 		-I/opt/homebrew/opt/openssl@3/include \
+		-L/opt/homebrew/opt/openssl@3/lib \
 		-lssl \
 		-lcrypto \
 		-dynamiclib \
