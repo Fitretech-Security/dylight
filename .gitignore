@@ -59,3 +59,4 @@ src/server/server
 src/server/dylight_server
 src/client/certs/*.pem
 src/client/certs/*.srl
+src/client/loader*

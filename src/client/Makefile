@@ -24,6 +24,9 @@ release: main.c
 
 release-dl: main.c
 	gcc main.c -o $(BINARY_NAME).dylib \
+		-I/opt/homebrew/opt/openssl@3/include \
+		-lssl \
+		-lcrypto \
 		-dynamiclib \
 		-DHOST=\"$(HOST)\" \
 		-DPORT=$(PORT) \
@@ -34,6 +37,9 @@ release-dl: main.c
 
 debug: main.c
 	gcc main.c -o $(BINARY_NAME)_debug \
+		-I/opt/homebrew/opt/openssl@3/include \
+		-lssl \
+		-lcrypto \
 		-DHOST=\"$(HOST)\" \
 		-DPORT=$(PORT) \
 		-DDYLIB_PATH=\"$(DYLIB_PATH)\" \

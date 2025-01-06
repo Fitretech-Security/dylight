@@ -119,6 +119,16 @@ int create_socket(const char *hostname, int port) {
     return sock;
 }
 
+void send_https_get_request(SSL *ssl, const char *hostname, const char *path) {
+    char request[1024];
+    snprintf(request, sizeof(request),
+             "GET %s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Connection: close\r\n\r\n",
+             path, hostname);
+    SSL_write(ssl, request, strlen(request));
+}
+
 void communicate_with_server(const char *hostname, int port) {
     SSL_CTX *ctx;
     SSL *ssl;
@@ -138,7 +148,6 @@ void communicate_with_server(const char *hostname, int port) {
         #ifdef VERBOSE
         printf("Connected to %s\n", hostname);
         #endif
-        // Use SSL_write and SSL_read for communication
         send_https_get_request(ssl, hostname, "/");
         char buffer[BUFFER_SIZE];
         int bytes = SSL_read(ssl, buffer, sizeof(buffer));
@@ -205,18 +214,6 @@ int create_socket(const char *hostname, int port) {
     }
 
     return sockfd;
-}
-#endif
-
-#ifdef MTLS
-void send_https_get_request(SSL *ssl, const char *hostname, const char *path) {
-    char request[1024];
-    snprintf(request, sizeof(request),
-             "GET %s HTTP/1.1\r\n"
-             "Host: %s\r\n"
-             "Connection: close\r\n\r\n",
-             path, hostname);
-    SSL_write(ssl, request, strlen(request));
 }
 #endif
 
