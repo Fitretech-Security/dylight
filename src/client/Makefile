@@ -12,6 +12,9 @@ all: release
 
 release: main.c
 	gcc main.c -o $(BINARY_NAME) \
+		-I/opt/homebrew/opt/openssl@3/include \
+		-lssl \
+		-lcrypto \
 		-DHOST=\"$(HOST)\" \
 		-DPORT=$(PORT) \
 		-DDYLIB_PATH=\"$(DYLIB_PATH)\" \

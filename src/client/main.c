@@ -21,7 +21,12 @@
 #define CA_FILE "./certs/ca-cert.pem"
 //#define RAW
 
-struct Memory global_mem = {0};
+struct Memory {
+    char *data;
+    size_t size;
+};
+
+struct Memory global_mem;
 
 //MTLS SECTION
 #ifdef MTLS
@@ -165,11 +170,6 @@ void setup_signal_handlers() {
     sigaction(SIGINT, &sa, NULL);  // Handle Ctrl+C
     sigaction(SIGTERM, &sa, NULL); // Handle termination signal
 }
-
-struct Memory {
-    char *data;
-    size_t size;
-};
 
 #ifdef RAW
 int create_socket(const char *hostname, int port) {

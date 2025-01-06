@@ -9,6 +9,17 @@ It handles the dylib "almost" without touching disk, but is limited to the capab
 This project requires a macOS machine to compile for best results
 
 
+## Requirements
+### Client
+openssl libraries
+```bash
+brew install openssl
+```
+> [!Important]
+> The client makefile will need to change depending on macOS processor type:
+>  - Silicon: -I /opt/homebrew/opt/openssl@3/include
+>  - Intel: -I /usr/local/opt/openssl@3/include
+
 ## Configuration
 
 The `config.env` file contains the configuration variables for the project:
