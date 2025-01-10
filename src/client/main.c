@@ -14,6 +14,11 @@
 
 #define BUFFER_SIZE 4096
 
+struct Memory {
+    char *data;
+    size_t size;
+};
+
 struct Memory global_mem = {0};
 
 void cleanup(int signum) {
@@ -32,11 +37,6 @@ void setup_signal_handlers() {
     sigaction(SIGINT, &sa, NULL);  // Handle Ctrl+C
     sigaction(SIGTERM, &sa, NULL); // Handle termination signal
 }
-
-struct Memory {
-    char *data;
-    size_t size;
-};
 
 int create_socket(const char *hostname, int port) {
     struct hostent *server;
