@@ -10,6 +10,20 @@ export
 
 all: release
 
+mtls: mtls.c 
+	gcc mtls.c -o $(BINARY_NAME) \
+		-I/opt/homebrew/opt/openssl@3/include \
+		-L/opt/homebrew/opt/openssl@3/lib \
+		-lssl \
+		-lcrypto \
+		-DHOST=\"$(HOST)\" \
+		-DPORT=$(PORT) \
+		-DDYLIB_PATH=\"$(DYLIB_PATH)\" \
+		-DENTRY_POINT=\"$(ENTRY_POINT)\" \
+		-DENTRY_POINT_FUNC=$(ENTRY_POINT) \
+		-DTMP_FILENAME=\"$(TMP_FILENAME)\" \
+		-DUSE_MTLS
+
 release: main.c
 	gcc main.c -o $(BINARY_NAME) \
 		-I/opt/homebrew/opt/openssl@3/include \
