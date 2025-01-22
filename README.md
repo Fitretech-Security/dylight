@@ -43,7 +43,7 @@ TMP_FILENAME=$(shell echo com.apple.launchd.$(shell tr -dc 'a-z' < /dev/urandom 
 > You MUST include all '/' in the `DYLIB_PATH` variable, including the leading. (e.g., `/api/download/libPdfManger.dylib`)
 
 ## Makefile
-The Makefile includes targets for building the release version, debug version, and a test dylib:
+The Makefile includes targets for building the release version, debug version, dylib version,  and a test dylib:
 
 To build the project, run the following commands:
 
@@ -79,7 +79,8 @@ For the debug version:
 ```
 
 ## Hosting the remote dylib
-For development purposes, using python's `http.server` module is sufficient for staging.
+~For development purposes, using python's `http.server` module is sufficient for staging.~
+Use python's `updog` package to host with `updog --ssl --port 443`. Install with `pipx install updog` for less dependency issues/venv.
 
 Example:
 ```bash
@@ -88,26 +89,23 @@ curl 127.0.0.1/libtest.dylib -o libtest.dylib # This can be any method
 ```
 
 ## Known Issues
-This project is not opsec safe for environments that use network monitoring software, as it retrieves the staged dylib over <ins>unencrypted</ins> HTTP.
-
-It also is not *super* memory safe, due to the fact that most of your dylibs are going to be long-running ;)
-It does not have a signal handler of any type, so long-running services must have a clean exit function internally.
-
 There is also no obfuscation involved. None at all. Might do that in the future, but for now, it functions fine as-is.
 
 ## Future Goals
 Here are the goals to make this project "complete":
 
-- [ ] Integrate HTTPS
+- [x] Integrate HTTPS
 - [ ] Integrate other data streams (Websockets, etc)
 - [x] Make a memory safe exit! (7410c5c117143ed673b233f6d9d0ea4898f48215 added handler for SIGINT and SIGTERM for better memory safety)
 - [ ] Obfuscation
 
 ## Additional Notes and Testing
-This project works on small and large dylibs, testing from the demo included in this repo (~33K) to large C2 implants like Poseidon (9.4M). There were no issues unresolved other than requiring a clean exit from the dylib for memory issues.
+This project works on small and large dylibs, testing from the demo included in this repo (~33K) to large C2 implants like Poseidon (9.4M).
+
+Until shifted to another technique, this repo build openssl libraries statically into the payload. This increases the payload size to ~4M. 
 
 Please create an issue as you see them.
 
 ## Versions
-
+- 1.1 TLS Support
 - 1.0 Initial release
