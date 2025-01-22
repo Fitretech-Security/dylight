@@ -12,6 +12,11 @@ all: release
 
 release: main.c
 	gcc main.c -o $(BINARY_NAME) \
+		-I/opt/homebrew/opt/openssl@3/include \
+		/opt/homebrew/opt/openssl@3/lib/libssl.a \
+		/opt/homebrew/opt/openssl@3/lib/libcrypto.a \
+		-ldl \
+		-lpthread \
 		-DHOST=\"$(HOST)\" \
 		-DPORT=$(PORT) \
 		-DDYLIB_PATH=\"$(DYLIB_PATH)\" \
@@ -21,6 +26,11 @@ release: main.c
 
 release-dl: main.c
 	gcc main.c -o $(BINARY_NAME).dylib \
+		-I/opt/homebrew/opt/openssl@3/include \
+		/opt/homebrew/opt/openssl@3/lib/libssl.a \
+		/opt/homebrew/opt/openssl@3/lib/libcrypto.a \
+		-ldl \
+		-lpthread \
 		-dynamiclib \
 		-DHOST=\"$(HOST)\" \
 		-DPORT=$(PORT) \
@@ -31,6 +41,11 @@ release-dl: main.c
 
 debug: main.c
 	gcc main.c -o $(BINARY_NAME)_debug \
+		-I/opt/homebrew/opt/openssl@3/include \
+		/opt/homebrew/opt/openssl@3/lib/libssl.a \
+		/opt/homebrew/opt/openssl@3/lib/libcrypto.a \
+		-ldl \
+		-lpthread \
 		-DHOST=\"$(HOST)\" \
 		-DPORT=$(PORT) \
 		-DDYLIB_PATH=\"$(DYLIB_PATH)\" \
